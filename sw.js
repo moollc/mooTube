@@ -1,4 +1,4 @@
-const CACHE_NAME = 'multiaudio-sync-v1';
+const CACHE_NAME = 'mootube-v1';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -32,7 +32,6 @@ self.addEventListener('activate', (event) => {
 });
 
 // Fetch Event: Network First, Fallback to Cache
-// We use Network First for the HTML to ensure stream links are always fresh.
 self.addEventListener('fetch', (event) => {
   // Skip cross-origin requests (like YouTube API)
   if (!event.request.url.startsWith(self.location.origin)) {
@@ -46,7 +45,6 @@ self.addEventListener('fetch', (event) => {
         if (!response || response.status !== 200 || response.type !== 'basic') {
           return response;
         }
-        // Clone response to cache
         const responseToCache = response.clone();
         caches.open(CACHE_NAME).then((cache) => {
           cache.put(event.request, responseToCache);
