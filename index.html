@@ -1,3 +1,11 @@
+<!-- 
+    mooTube - Multi-Audio Live Sync Player
+    
+    Check out more of my stuff at: https://github.com/moollc
+    
+    A PWA for syncing multiple YouTube audio streams with a master video feed.
+    Powered by YouTube IFrame API.
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -16,6 +24,14 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="mooTube">
+
+    <!-- Fonts: Montserrat (Gotham alternative) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&display=swap" rel="stylesheet">
+
+    <!-- Web3 Library (Ethers.js) -->
+    <script src="https://cdn.ethers.io/lib/ethers-5.7.2.umd.min.js" type="application/javascript"></script>
 
     <style>
         :root {
@@ -46,10 +62,16 @@
             margin-bottom: 20px;
         }
 
-        h1 { margin: 0; font-size: 1.2rem; }
+        h1 { 
+            margin: 0; 
+            font-size: 1.5rem; 
+            font-family: 'Montserrat', sans-serif; /* Gotham Bold Alternative */
+            font-weight: 800;
+            letter-spacing: -0.5px;
+        }
 
         /* Setup Screen Styles */
-        #setup-screen {
+        #setup-screen, #wallet-screen {
             display: flex;
             flex-direction: column;
             gap: 15px;
@@ -58,6 +80,12 @@
             padding: 20px;
             background: var(--surface);
             border-radius: 10px;
+        }
+
+        #wallet-screen {
+            display: none; /* Hidden by default */
+            align-items: center;
+            text-align: center;
         }
 
         .input-group {
@@ -108,6 +136,7 @@
             flex-direction: column;
             align-items: center;
             gap: 20px;
+            flex: 1; /* Push footer down */
         }
 
         #master-container {
@@ -251,7 +280,56 @@
             margin-bottom: 10px;
             display: none;
         }
-          display: none;
+
+        /* Icons */
+        .icon {
+            width: 24px;
+            height: 24px;
+            fill: currentColor;
+            vertical-align: middle;
+        }
+        
+        .wallet-icon {
+            width: 60px;
+            height: 60px;
+            margin-bottom: 15px;
+        }
+
+        /* Footer */
+        footer {
+            margin-top: auto;
+            padding: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            border-top: 1px solid #333;
+            background: #111;
+        }
+
+        .footer-logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 700;
+            font-size: 0.9rem;
+            color: #666;
+            text-decoration: none;
+        }
+        
+        .footer-logo img, .footer-logo svg {
+            height: 24px;
+            width: 24px; /* Fixed width for alignment */
+            filter: grayscale(100%);
+            opacity: 0.6;
+            transition: all 0.2s;
+        }
+
+        .footer-logo:hover img, .footer-logo:hover svg {
+            filter: grayscale(0%);
+            opacity: 1;
         }
 
         /* NEW: Mobile Layout Tweaks */
@@ -286,31 +364,53 @@
         <h1 id="app-title">mooTube</h1>
     </header>
 
+    <!-- WALLET CONNECT SCREEN (Enabled via WEB3_CONFIG) -->
+    <div id="wallet-screen">
+        <!-- SVG Lock Icon -->
+        <svg class="icon wallet-icon" viewBox="0 0 24 24" style="fill: #f6851b;">
+            <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>
+        </svg>
+        <h3>Exclusive Access</h3>
+        <p style="color: #aaa; font-size: 0.9rem;">
+            This event requires a digital ticket. Please connect your wallet.
+        </p>
+        <button onclick="connectWallet()" style="background: #f6851b; color: #000; display: flex; align-items: center; gap: 10px; justify-content: center;">
+            <!-- MetaMask Fox Simple Path -->
+            <svg width="20" height="20" viewBox="0 0 32 32" style="fill:currentColor">
+                <path d="M27.097 9.923l-1.393-4.577c-0.235-0.793-1.296-0.916-1.725-0.219l-3.203 5.485-6.529-10.372c-0.379-0.597-1.259-0.597-1.637 0l-6.529 10.372-3.203-5.485c-0.428-0.697-1.49-0.573-1.725 0.219l-1.393 4.577c-0.732 2.457 0.228 5.132 2.277 6.46l11.756 7.429c0.352 0.22 0.8 0.22 1.152 0l11.756-7.429c2.049-1.328 3.009-4.003 2.277-6.46z"></path>
+            </svg>
+            Connect Wallet
+        </button>
+        <p id="wallet-status" style="font-size: 0.8rem; color: #ff4444; min-height: 20px;"></p>
+    </div>
+
     <!-- SETUP SCREEN -->
     <div id="setup-screen">
         
         <div id="file-protocol-warning" class="warning-box">
-            <strong>WARNING:</strong> You are opening this file directly (file://). YouTube blocks live playback in this mode. 
-            <br>Please run this on a Local Server (localhost) or upload to GitHub Pages.
+            <!-- SVG Warning Icon -->
+            <svg class="icon" viewBox="0 0 24 24" style="fill: #ffaa88; margin-right: 5px; width: 16px; height: 16px;">
+                <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+            </svg>
+            <strong>WARNING:</strong> You are opening this file directly (file://). YouTube blocks live playback.
+            <br>Please run on Local Server (localhost) or GitHub Pages.
         </div>
 
         <h3>1. Configure Streams</h3>
         
         <div class="input-group">
-            <label>Stream Label (e.g., "English", "Spanish")</label>
+            <label>Stream Label</label>
             <input type="text" id="streamLabel" placeholder="Main Feed">
         </div>
         
         <div class="input-group">
             <label>Link, ID, or Embed Code</label>
-            <input type="text" id="streamLink" placeholder='e.g. youtube.com/live/ID?feature=share' >
+            <input type="text" id="streamLink" placeholder='e.g. youtube.com/live/ID' >
         </div>
 
         <button onclick="addStream()">+ Add Stream</button>
 
-        <div id="added-streams-list">
-            <!-- Items added here -->
-        </div>
+        <div id="added-streams-list"></div>
 
         <hr style="width:100%; border:0; border-top:1px solid #444;">
         
@@ -326,9 +426,7 @@
             <div id="error-overlay">
                 <h3 style="color: #ff4444">Playback Error</h3>
                 <p id="error-message">Waiting for stream...</p>
-                <div style="font-size: 0.9rem; color: #ffaaaa; margin-top: 15px; border: 1px solid #ff4444; padding: 10px; background: rgba(50,0,0,0.5); border-radius: 5px;" id="env-warning">
-                    <!-- Warning injected via JS -->
-                </div>
+                <div style="font-size: 0.9rem; color: #ffaaaa; margin-top: 15px; border: 1px solid #ff4444; padding: 10px; background: rgba(50,0,0,0.5); border-radius: 5px;" id="env-warning"></div>
                 <button onclick="location.reload()" style="margin-top:10px">Reload Page</button>
             </div>
         </div>
@@ -346,14 +444,16 @@
             </div>
 
             <div class="control-group">
-                <span>Vol</span>
+                <!-- SVG Volume Icon -->
+                <svg class="icon" viewBox="0 0 24 24" style="fill: #888; width: 18px; height: 18px;">
+                    <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                </svg>
                 <input type="range" id="volSlider" min="0" max="100" value="100" oninput="setVolume(this.value)">
             </div>
 
             <!-- Audio Selector -->
             <div class="audio-selector" id="audio-buttons">
                 <div class="section-label">Audio Source</div>
-                <!-- Generated buttons go here -->
             </div>
         </div>
 
@@ -362,22 +462,45 @@
 
     </div>
 
+    <footer>
+        <a href="https://github.com/moollc" target="_blank" rel="noopener noreferrer" class="footer-logo" title="mooTools">
+            <!-- mooTools Custom SVG Icon -->
+            <svg viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" aria-label="mooTools Logo">
+                <defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#967423"/><stop offset="50%" stop-color="#FCDD76"/><stop offset="100%" stop-color="#967423"/></linearGradient></defs>
+                <circle cx="64" cy="64" r="52" fill="none" stroke="url(#g)" stroke-width="5"/>
+                <g fill="none" stroke="url(#g)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M30,86 V70 Q30,60 39,60 Q48,60 48,70 V86 M48,70 Q48,60 57,60 Q66,60 66,70 V86"/>
+                    <path d="M74,42 H98 M86,42 V86"/>
+                </g>
+            </svg>
+            mooTools
+        </a>
+        <span style="color: #444;">|</span>
+        <a href="https://metamask.io/download" target="_blank" rel="noopener noreferrer" class="footer-logo" title="Get MetaMask">
+            <!-- Official MetaMask Logo from Wikimedia -->
+            <img src="https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg" alt="MetaMask" style="height: 24px; width: 24px; filter: grayscale(100%); opacity: 0.6; transition: all 0.2s;">
+            MetaMask
+        </a>
+    </footer>
+
     <script>
         // --- CONFIGURATION FOR SHARING ---
         
-        // 1. App Title Configuration
         const APP_CONFIG = {
-            title: "mooTube" // Change this to whatever you want the header/tab to say
+            title: "mooTube" 
         };
 
-        // 2. To Auto-Launch for friends: Add your streams here.
-        // If this list is not empty, the Setup Screen will be SKIPPED.
+        // 2. Web3 Configuration (Blockchain)
+        const WEB3_CONFIG = {
+            enabled: false, // DISABLED BY DEFAULT (User request)
+            contractAddress: "0x0CDb0E4187E2b2b1A6448214E4f14d6d279799C3",
+            networkId: 137, // Polygon Mainnet
+            requiredBalance: 1
+        };
+
+        // 3. Auto-Launch Streams
         const PRESET_STREAMS = [
-            // Example Format:
-            // { label: "Main Feed", url: "https://www.youtube.com/live/VIDEO_ID" },
-            
-            // PASTE YOUR LINKS BELOW:
-            { label: "English", url: "https://www.youtube.com/live/plouQ1r1UnE?si=4i-dqWnBBQvd5WtL" },
+            { label: "English", url: "https://youtube.com/live/plouQ1r1UnE?si=4i-dqWnBBQvd5WtL" },
             { label: "Spanish", url: "https://www.youtube.com/live/MINldxbTOSI?si=ytY65e3Oy-etoltF" },   
             { label: "French", url: "https://www.youtube.com/live/XYrvGx2F1jY?si=32VY7TSgm-4OqteF" }, 
         ];
@@ -389,85 +512,120 @@
         // Register Service Worker
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
-                    .then(reg => console.log('SW Registered!', reg.scope))
-                    .catch(err => console.log('SW Failed:', err));
+                navigator.serviceWorker.register('./sw.js').catch(() => {});
             });
         }
 
-        // Check for file protocol immediately
         if (window.location.protocol === 'file:') {
             document.getElementById('file-protocol-warning').style.display = 'block';
         }
 
         // State
-        let streams = []; // { id, label, videoId, player: YT.Player }
+        let streams = [];
         let currentAudioIndex = 0;
         let isPlaying = false;
         let appLaunched = false;
         let globalVolume = 100;
         let apiReady = false;
+        let isWalletVerified = false;
+
+        // --- WEB3 LOGIC ---
+
+        function initWeb3Check() {
+            if (!WEB3_CONFIG.enabled) {
+                isWalletVerified = true;
+                return true;
+            }
+            document.getElementById('setup-screen').style.display = 'none';
+            document.getElementById('wallet-screen').style.display = 'flex';
+            return false;
+        }
+
+        async function connectWallet() {
+            const status = document.getElementById('wallet-status');
+            
+            if (typeof window.ethereum === 'undefined') {
+                status.innerText = "No wallet found. Please install MetaMask.";
+                return;
+            }
+
+            try {
+                status.innerText = "Connecting...";
+                const provider = new ethers.providers.Web3Provider(window.ethereum);
+                await provider.send("eth_requestAccounts", []);
+                const signer = provider.getSigner();
+                const address = await signer.getAddress();
+                const network = await provider.getNetwork();
+
+                if (network.chainId !== WEB3_CONFIG.networkId) {
+                    status.innerText = "Wrong Network! Please switch to Polygon.";
+                    try {
+                        await window.ethereum.request({
+                            method: 'wallet_switchEthereumChain',
+                            params: [{ chainId: '0x' + WEB3_CONFIG.networkId.toString(16) }],
+                        });
+                    } catch (err) { console.error(err); }
+                    return;
+                }
+                
+                const minABI = ["function balanceOf(address owner) view returns (uint256)"];
+                const contract = new ethers.Contract(WEB3_CONFIG.contractAddress, minABI, provider);
+                const balance = await contract.balanceOf(address);
+
+                if (balance.gte(WEB3_CONFIG.requiredBalance)) {
+                    status.innerText = "Ticket Verified! Access Granted.";
+                    status.style.color = "#00ff00";
+                    setTimeout(() => {
+                        document.getElementById('wallet-screen').style.display = 'none';
+                        checkPresets(); 
+                    }, 1000);
+                } else {
+                    status.innerText = "Access Denied: No Ticket Found.";
+                }
+
+            } catch (error) {
+                console.error(error);
+                status.innerText = "Connection failed.";
+            }
+        }
 
         // --- SETUP LOGIC ---
 
         function addStream() {
             const labelInput = document.getElementById('streamLabel');
             const linkInput = document.getElementById('streamLink');
-            const list = document.getElementById('added-streams-list');
-            const launchBtn = document.getElementById('launchBtn');
-
-            const label = labelInput.value.trim();
             const url = linkInput.value.trim();
-
             const videoId = extractVideoID(url);
 
-            if (!label || !videoId) {
-                alert("Could not find a valid Video ID. Please check the link or embed code.");
-                return;
-            }
+            if (!videoId) return alert("Invalid Link");
 
             streams.push({
-                id: streams.length, // 0 is always master
-                label: label,
+                id: streams.length,
+                label: labelInput.value.trim() || `Stream ${streams.length + 1}`,
                 videoId: videoId,
                 player: null
             });
 
-            // UI update
             const div = document.createElement('div');
             div.className = 'stream-list-item';
-            div.innerHTML = `<span>${label}</span> <span style="color:#aaa">${videoId}</span>`;
-            list.appendChild(div);
+            div.innerHTML = `<span>${labelInput.value}</span> <span style="color:#aaa">${videoId}</span>`;
+            document.getElementById('added-streams-list').appendChild(div);
 
-            // Clear inputs
             labelInput.value = '';
             linkInput.value = '';
-
-            // Enable launch if we have at least 1 stream
-            if (streams.length > 0) {
-                launchBtn.disabled = false;
-                launchBtn.innerText = `Launch with ${streams.length} Stream(s)`;
-            }
+            document.getElementById('launchBtn').disabled = false;
+            document.getElementById('launchBtn').innerText = `Launch with ${streams.length} Stream(s)`;
         }
 
         function extractVideoID(input) {
             if (!input) return null;
             input = input.trim();
-
-            // 1. Handle full IFRAME embed code
-            if (input.includes('<iframe') || input.includes('src=')) {
-                const srcMatch = input.match(/src=["'](.*?)["']/);
-                if (srcMatch && srcMatch[1]) {
-                    input = srcMatch[1]; 
-                }
+            if (input.includes('src=')) {
+                const match = input.match(/src=["'](.*?)["']/);
+                if (match) input = match[1];
             }
-
-            // 2. If user pasted just the ID (11 chars)
             if (input.length === 11) return input;
-            
-            // 3. Regex for various YouTube URL formats
-            const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=|live\/)([^#&?]*).*/;
-            const match = input.match(regExp);
+            const match = input.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=|live\/)([^#&?]*).*/);
             return (match && match[2].length === 11) ? match[2] : null;
         }
 
@@ -475,7 +633,6 @@
             document.getElementById('setup-screen').style.display = 'none';
             document.getElementById('player-screen').style.display = 'flex';
             appLaunched = true;
-            
             initPlayers();
             renderAudioButtons();
         }
@@ -483,139 +640,81 @@
         // --- PLAYER INITIALIZATION ---
 
         window.onYouTubeIframeAPIReady = function() {
-            console.log("YouTube API Ready");
             apiReady = true;
-            if (appLaunched) {
-                initPlayers();
-            }
+            if (appLaunched) initPlayers();
         };
 
         function initPlayers() {
-            if (!apiReady || typeof YT === 'undefined' || !YT.Player) {
-                console.log("Waiting for API...");
-                if(appLaunched) setTimeout(initPlayers, 500);
+            if (!apiReady || typeof YT === 'undefined') {
+                setTimeout(initPlayers, 500);
                 return;
             }
-
             if (streams[0].player) return;
 
             let origin = window.location.origin;
-            let playerVarsCommon = {
-                'playsinline': 1,
-                'controls': 0, 
-                'disablekb': 1,
-                'modestbranding': 1,
-                'rel': 0,
-                'autoplay': 1,
-                'mute': 1, 
-                'enablejsapi': 1,
-                'host': 'https://www.youtube.com'
+            let playerVars = {
+                'playsinline': 1, 'controls': 0, 'disablekb': 1,
+                'modestbranding': 1, 'rel': 0, 'autoplay': 1, 'mute': 1,
+                'enablejsapi': 1, 'host': 'https://www.youtube.com'
             };
-
-            // STRICT ORIGIN CHECK:
-            if (origin && origin !== 'null' && (origin.startsWith('http://') || origin.startsWith('https://'))) {
-                playerVarsCommon['origin'] = origin;
+            if (origin && origin !== 'null' && !origin.startsWith('file:')) {
+                playerVars['origin'] = origin;
             }
 
             streams.forEach((stream, index) => {
                 const config = {
                     videoId: stream.videoId,
-                    playerVars: playerVarsCommon,
+                    playerVars: playerVars,
                     events: {
                         'onStateChange': onPlayerStateChange,
-                        'onError': (e) => onPlayerError(e, stream.label) // Capture errors
+                        'onError': (e) => onPlayerError(e, stream.label)
                     }
                 };
 
                 if (index === 0) {
-                    // Master Player
-                    config.height = '100%';
-                    config.width = '100%';
-                    
-                    // Add dedicated onReady for Master to set quality
+                    config.height = '100%'; config.width = '100%';
                     config.events['onReady'] = onMasterPlayerReady;
-                    
                     stream.player = new YT.Player('master-player', config);
                 } else {
-                    // Slave Players
-                    const divId = `slave-player-${index}`;
                     const div = document.createElement('div');
-                    div.id = divId;
+                    div.id = `slave-player-${index}`;
                     document.getElementById('slave-container').appendChild(div);
-                    
-                    config.height = '250';
-                    config.width = '250';
-                    stream.player = new YT.Player(divId, config);
+                    config.height = '250'; config.width = '250';
+                    stream.player = new YT.Player(div.id, config);
                 }
             });
         }
 
-        // --- MASTER PLAYER READY & QUALITY ---
-        
         function onMasterPlayerReady(event) {
-            console.log("Master Player Ready.");
-            // 1. Force best quality immediately
             forceBestQuality(event.target);
-            // 2. Populate Dropdown
             populateQualityDropdown(event.target);
         }
 
         function forceBestQuality(player) {
             const levels = player.getAvailableQualityLevels();
-            if (levels && levels.length > 0) {
-                // levels are usually ['hd1080', 'hd720', ...]
-                const bestQuality = levels[0];
-                player.setPlaybackQuality(bestQuality);
-                // Also update dropdown visual state
-                const dropdown = document.getElementById('qualityPick');
-                if(dropdown) dropdown.value = bestQuality;
-            } else {
-                player.setPlaybackQuality('hd1080');
-            }
+            if (levels && levels.length > 0) player.setPlaybackQuality(levels[0]);
+            else player.setPlaybackQuality('hd1080');
         }
 
         function setQuality(lvl) {
-            console.log("Manual Quality Set:", lvl);
-            const master = streams[0]?.player;
-            if (master && typeof master.setPlaybackQuality === 'function') {
-                master.setPlaybackQuality(lvl);
-            }
+            if (streams[0]?.player) streams[0].player.setPlaybackQuality(lvl);
         }
 
         function populateQualityDropdown(player) {
             const levels = player.getAvailableQualityLevels();
             const dropdown = document.getElementById('qualityPick');
-            
-            if (!levels || levels.length === 0) {
-                dropdown.innerHTML = '<option value="">Quality: Auto</option>';
-                return;
-            }
-
-            dropdown.innerHTML = ""; // Clear existing
-
-            // YouTube returns specific strings. Let's map them to readable text.
-            const qualityMap = {
-                'highres': 'High Res',
-                'hd2160': '4K',
-                'hd1440': '1440p',
-                'hd1080': '1080p',
-                'hd720': '720p',
-                'large': '480p',
-                'medium': '360p',
-                'small': '240p',
-                'tiny': '144p',
-                'auto': 'Auto'
-            };
-
+            if (!levels || levels.length === 0) return;
+            dropdown.innerHTML = "";
+            const map = { 'highres': 'High Res', 'hd1080': '1080p', 'hd720': '720p', 'large': '480p', 'medium': '360p', 'small': '240p', 'tiny': '144p', 'auto': 'Auto' };
             levels.forEach(lvl => {
-                const option = document.createElement('option');
-                option.value = lvl;
-                option.text = qualityMap[lvl] || lvl;
-                dropdown.appendChild(option);
+                const opt = document.createElement('option');
+                opt.value = lvl;
+                opt.text = map[lvl] || lvl;
+                dropdown.appendChild(opt);
             });
         }
 
-        // --- API LOADER (Async Injection) ---
+        // --- LOAD API ---
         (function() {
             var tag = document.createElement('script');
             tag.src = "https://www.youtube.com/iframe_api";
@@ -623,21 +722,13 @@
             firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
         })();
 
-
-        // --- SYNC & CONTROL LOGIC ---
+        // --- CONTROLS ---
 
         function renderAudioButtons() {
             const container = document.getElementById('audio-buttons');
-            // Keep the label, clear the buttons
             const label = container.querySelector('.section-label');
             container.innerHTML = '';
-            if(label) container.appendChild(label);
-            else {
-                 const newLabel = document.createElement('div');
-                 newLabel.className = 'section-label';
-                 newLabel.innerText = 'Audio Source';
-                 container.appendChild(newLabel);
-            }
+            container.appendChild(label || Object.assign(document.createElement('div'), {className:'section-label', innerText:'Audio Source'}));
 
             streams.forEach((stream, index) => {
                 const btn = document.createElement('button');
@@ -650,181 +741,10 @@
 
         function togglePlay() {
             isPlaying = !isPlaying;
-            const btn = document.getElementById('playPauseBtn');
-            const badge = document.getElementById('liveIndicator');
-
-            if (isPlaying) {
-                btn.innerText = "STOP / PAUSE";
-                btn.classList.add('active');
-                badge.classList.add('active');
-                syncAndPlay();
-            } else {
-                btn.innerText = "PLAY LIVE";
-                btn.classList.remove('active');
-                badge.classList.remove('active');
-                pauseAll();
-            }
+            updatePlayBtnUI();
+            isPlaying ? syncAndPlay() : pauseAll();
         }
 
-        function syncAndPlay() {
-            streams.forEach(s => {
-                if(s.player && typeof s.player.playVideo === 'function') {
-                    // Seek to live edge
-                    if(typeof s.player.getDuration === 'function') {
-                        const duration = s.player.getDuration();
-                        if(duration > 0) s.player.seekTo(duration, true);
-                    }
-                    s.player.playVideo();
-                }
-            });
-            updateAudioState();
-        }
-
-        function pauseAll() {
-            streams.forEach(s => {
-                if(s.player && typeof s.player.pauseVideo === 'function') {
-                    s.player.pauseVideo();
-                }
-            });
-        }
-
-        // --- AUDIO MANAGEMENT ---
-
-        function selectAudioSource(index) {
-            currentAudioIndex = index;
-
-            // Update UI
-            const btns = document.querySelectorAll('.audio-btn');
-            btns.forEach((btn, i) => {
-                if (i === index) btn.classList.add('active');
-                else btn.classList.remove('active');
-            });
-
-            // Force Sync when switching audio to ensure alignment
-            if (isPlaying) {
-                syncAndPlay();
-            } else {
-                updateAudioState();
-            }
-        }
-
-        function updateAudioState() {
-            streams.forEach((s, index) => {
-                if(!s.player || typeof s.player.mute !== 'function') return;
-
-                if (index === currentAudioIndex) {
-                    s.player.unMute();
-                    s.player.setVolume(globalVolume);
-                } else {
-                    s.player.mute();
-                }
-            });
-        }
-
-        function setVolume(val) {
-            globalVolume = val;
-            const activeStream = streams[currentAudioIndex];
-            if(activeStream && activeStream.player && typeof activeStream.player.setVolume === 'function') {
-                activeStream.player.setVolume(globalVolume);
-            }
-        }
-
-        // --- ERROR HANDLING ---
-        
-        function onPlayerError(event, label) {
-            const errorCode = event.data;
-            let msg = "";
-
-            if (errorCode === 150 || errorCode === 153) {
-                msg = `Error: Stream "${label}" blocked.`;
-                
-                const envWarning = document.getElementById('env-warning');
-                const protocol = window.location.protocol;
-                const origin = window.location.origin;
-                
-                if (protocol === 'file:') {
-                     msg += " (Protocol: file://)";
-                     envWarning.innerHTML = `
-                        <strong>CRITICAL: FILE PROTOCOL DETECTED</strong><br>
-                        You are opening this file directly from your computer (<code>file://</code>).<br>
-                        YouTube <strong>blocks</strong> live stream embeds in this mode for security.<br>
-                        <hr style="border:0; border-top:1px solid #777; margin:10px 0;">
-                        <strong>HOW TO FIX:</strong><br>
-                        1. <strong>GitHub:</strong> Upload this file to GitHub Pages.<br>
-                        2. <strong>VS Code:</strong> Right-click file > "Open with Live Server".
-                     `;
-                } else if (!origin || origin === 'null') {
-                     envWarning.innerHTML = `<strong>Preview Environment Detected.</strong><br>YouTube blocks this.<br>Please deploy this code to a real server.`;
-                } else {
-                    msg += " Check if video is Public/Unlisted and allows embedding.";
-                    envWarning.innerText = "Code is running on a server, but the video owner has blocked embedding.";
-                }
-            } else if (errorCode === 100) {
-                msg = `Error: The video "${label}" was not found (or is private).`;
-            } else if (errorCode === 101) {
-                msg = `Error: The owner of "${label}" prevents playback in embedded players.`;
-            } else {
-                return; // Ignore minor errors
-            }
-
-            const overlay = document.getElementById('error-overlay');
-            const msgEl = document.getElementById('error-message');
-            msgEl.innerText = msg;
-            overlay.style.display = 'flex';
-            
-            console.error(msg);
-        }
-
-             function onPlayerStateChange(event) {
-            const player = event.target;
-            const iframe = player.getIframe();
-            if (!iframe) return;
-            const isMaster = iframe.id === 'master-player';
-
-            // 1. Handle PLAYING
-            if (event.data === YT.PlayerState.PLAYING) {
-                if (isMaster) {
-                    isPlaying = true;
-                    updatePlayBtnUI(); // Sync button text
-                    populateQualityDropdown(player);
-                    
-                    // Force slaves to resume if they were paused
-                    streams.forEach((s, i) => {
-                        if (i !== 0 && s.player && typeof s.player.playVideo === 'function') {
-                            s.player.playVideo();
-                        }
-                    });
-                }
-            }
-
-            // 2. Handle PAUSED
-            if (event.data === YT.PlayerState.PAUSED) {
-                if (isMaster) {
-                    isPlaying = false;
-                    updatePlayBtnUI(); // Sync button text
-                    
-                    // Force slaves to pause
-                    streams.forEach((s, i) => {
-                        if (i !== 0 && s.player && typeof s.player.pauseVideo === 'function') {
-                            s.player.pauseVideo();
-                        }
-                    });
-                }
-            }
-
-            // 3. Handle BUFFERING (Force Quality)
-            if (event.data === YT.PlayerState.BUFFERING) {
-                if(isMaster) {
-                    forceBestQuality(player);
-                }
-            }
-
-            if (event.data === YT.PlayerState.ENDED) {
-                togglePlay(); 
-            }
-        }
-
-        // New Helper to keep UI in sync with actual player state
         function updatePlayBtnUI() {
             const btn = document.getElementById('playPauseBtn');
             const badge = document.getElementById('liveIndicator');
@@ -839,29 +759,85 @@
             }
         }
 
-        // --- AUTO-LAUNCH CHECK ---
-        (function checkPresets() {
-            if (PRESET_STREAMS && PRESET_STREAMS.length > 0) {
-                console.log("Found presets, attempting auto-launch...");
-                PRESET_STREAMS.forEach(item => {
-                    const vId = extractVideoID(item.url);
-                    if (vId) {
-                        streams.push({
-                            id: streams.length,
-                            label: item.label,
-                            videoId: vId,
-                            player: null
-                        });
-                    }
-                });
+        function syncAndPlay() {
+            streams.forEach(s => {
+                if (s.player && s.player.playVideo) {
+                    if (s.player.getDuration) s.player.seekTo(s.player.getDuration(), true);
+                    s.player.playVideo();
+                }
+            });
+            updateAudioState();
+        }
 
-                if (streams.length > 0) {
-                    launchApp();
+        function pauseAll() {
+            streams.forEach(s => { if (s.player && s.player.pauseVideo) s.player.pauseVideo(); });
+        }
+
+        function selectAudioSource(index) {
+            currentAudioIndex = index;
+            document.querySelectorAll('.audio-btn').forEach((btn, i) => {
+                btn.classList.toggle('active', i === index);
+            });
+            if (isPlaying) syncAndPlay();
+            else updateAudioState();
+        }
+
+        function updateAudioState() {
+            streams.forEach((s, i) => {
+                if (!s.player) return;
+                if (i === currentAudioIndex) { s.player.unMute(); s.player.setVolume(globalVolume); }
+                else s.player.mute();
+            });
+        }
+
+        function setVolume(val) {
+            globalVolume = val;
+            if (streams[currentAudioIndex]?.player) streams[currentAudioIndex].player.setVolume(val);
+        }
+
+        function onPlayerError(event, label) {
+            const code = event.data;
+            if (code === 150 || code === 153 || code === 100 || code === 101) {
+                document.getElementById('error-overlay').style.display = 'flex';
+                document.getElementById('error-message').innerText = `Error: Stream "${label}" blocked. Check permissions.`;
+            }
+        }
+
+        function onPlayerStateChange(event) {
+            const player = event.target;
+            const isMaster = player.getIframe().id === 'master-player';
+
+            if (event.data === YT.PlayerState.PLAYING) {
+                if (isMaster) {
+                    isPlaying = true;
+                    updatePlayBtnUI();
+                    populateQualityDropdown(player);
+                    streams.forEach((s, i) => { if (i !== 0) s.player.playVideo(); });
                 }
             }
-        })();
+            if (event.data === YT.PlayerState.PAUSED) {
+                if (isMaster) {
+                    isPlaying = false;
+                    updatePlayBtnUI();
+                    streams.forEach((s, i) => { if (i !== 0) s.player.pauseVideo(); });
+                }
+            }
+            if (event.data === YT.PlayerState.BUFFERING && isMaster) {
+                forceBestQuality(player);
+            }
+            if (event.data === YT.PlayerState.ENDED) togglePlay();
+        }
 
+        (function checkPresets() {
+            if (!initWeb3Check()) return;
+            if (PRESET_STREAMS && PRESET_STREAMS.length > 0) {
+                PRESET_STREAMS.forEach(item => {
+                    const vId = extractVideoID(item.url);
+                    if (vId) streams.push({ id: streams.length, label: item.label, videoId: vId, player: null });
+                });
+                if (streams.length > 0) launchApp();
+            }
+        })();
     </script>
 </body>
 </html>
-
