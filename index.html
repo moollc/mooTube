@@ -3,14 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Stream Multi-Audio Sync</title>
+    <title>mooTube</title>
     <meta name="theme-color" content="#1a1a1a">
     <!-- Explicit referrer policy to help with origin checks -->
     <meta name="referrer" content="origin">
     <meta name="description" content="Multi-audio playback for YouTube Live Streams">
     
-    <!-- PWA Manifest -->
-    <link rel="manifest" href="data:application/json;base64,ewogICJuYW1lIjogIkxpdmUgTXVsdGktQXVkaW8iLAogICJzaG9ydF9uYW1lIjogIk11bHRpQXVkaW8iLAogICJzdGFydF91cmwiOiAiLiIsCiAgImRpc3BsYXkiOiAiZnVsbHNjcmVlbiIsCiAgImJhY2tncm91bmRfY29sb3IiOiAiIzFhMWExYSIsCiAgInRoZW1lX2NvbG9yIjogIiMxYTFhMWEiLAogICJpY29ucyI6IFtdCn0=">
+    <!-- Link to external Manifest -->
+    <link rel="manifest" href="manifest.json">
+
+    <!-- iOS Support -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="mooTube">
 
     <style>
         :root {
@@ -223,7 +228,7 @@
 <body>
 
     <header>
-        <h1>Multi-Audio Live Sync</h1>
+        <h1 id="app-title">mooTube</h1>
     </header>
 
     <!-- SETUP SCREEN -->
@@ -295,7 +300,13 @@
 
     <script>
         // --- CONFIGURATION FOR SHARING ---
-        // To Auto-Launch for friends: Add your streams here.
+        
+        // 1. App Title Configuration
+        const APP_CONFIG = {
+            title: "mooTube" // Change this to whatever you want the header/tab to say
+        };
+
+        // 2. To Auto-Launch for friends: Add your streams here.
         // If this list is not empty, the Setup Screen will be SKIPPED.
         const PRESET_STREAMS = [
             // Example Format:
@@ -306,6 +317,19 @@
             { label: "Spanish", url: "https://www.youtube.com/live/xCrPD7tfcr0?si=VTp25PEwNRAwBzu3" },   
             { label: "French", url: "https://www.youtube.com/live/XYrvGx2F1jY?si=32VY7TSgm-4OqteF" }, 
         ];
+
+        // --- APPLY CONFIGURATION ---
+        document.title = APP_CONFIG.title;
+        document.getElementById('app-title').innerText = APP_CONFIG.title;
+
+        // Register Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('SW Registered!', reg.scope))
+                    .catch(err => console.log('SW Failed:', err));
+            });
+        }
 
         // Check for file protocol immediately
         if (window.location.protocol === 'file:') {
@@ -444,6 +468,10 @@
                     // Master Player
                     config.height = '100%';
                     config.width = '100%';
+                    
+                    // Add dedicated onReady for Master to set quality
+                    config.events['onReady'] = onMasterPlayerReady;
+                    
                     stream.player = new YT.Player('master-player', config);
                 } else {
                     // Slave Players
@@ -457,6 +485,14 @@
                     stream.player = new YT.Player(divId, config);
                 }
             });
+        }
+
+        // --- MASTER PLAYER READY ---
+        function onMasterPlayerReady(event) {
+            console.log("Master Player Ready. Requesting High Res.");
+            // Suggest highest possible quality
+            event.target.setPlaybackQuality('highres');
+            // 'hd1080' or 'hd720' are other options, but 'highres' requests "best available"
         }
 
         // --- API LOADER (Async Injection) ---
@@ -611,6 +647,12 @@
         }
 
         function onPlayerStateChange(event) {
+            // Also suggest quality when playing starts, just in case
+            if (event.data === YT.PlayerState.PLAYING) {
+                if(event.target.getIframe().id === 'master-player') {
+                    event.target.setPlaybackQuality('highres');
+                }
+            }
             if (event.data === YT.PlayerState.ENDED) {
                 togglePlay(); 
             }
