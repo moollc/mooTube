@@ -489,10 +489,9 @@
 
         // --- MASTER PLAYER READY ---
         function onMasterPlayerReady(event) {
-            console.log("Master Player Ready. Requesting High Res.");
-            // Suggest highest possible quality
-            event.target.setPlaybackQuality('highres');
-            // 'hd1080' or 'hd720' are other options, but 'highres' requests "best available"
+            console.log("Master Player Ready. Requesting HD 1080p.");
+            // Explicitly request 1080p. 'highres' can sometimes be vague.
+            event.target.setPlaybackQuality('hd1080');
         }
 
         // --- API LOADER (Async Injection) ---
@@ -647,10 +646,11 @@
         }
 
         function onPlayerStateChange(event) {
-            // Also suggest quality when playing starts, just in case
-            if (event.data === YT.PlayerState.PLAYING) {
+            // Suggest quality when playing OR buffering
+            if (event.data === YT.PlayerState.PLAYING || event.data === YT.PlayerState.BUFFERING) {
                 if(event.target.getIframe().id === 'master-player') {
-                    event.target.setPlaybackQuality('highres');
+                    // Force HD 1080p aggressively
+                    event.target.setPlaybackQuality('hd1080');
                 }
             }
             if (event.data === YT.PlayerState.ENDED) {
