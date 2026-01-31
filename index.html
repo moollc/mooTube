@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Stream Multi-Audio Sync</title>
+    <meta name="theme-color" content="#1a1a1a">
+    <!-- Explicit referrer policy to help with origin checks -->
+    <meta name="referrer" content="origin">
+    <meta name="description" content="Multi-audio playback for YouTube Live Streams">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="data:application/json;base64,ewogICJuYW1lIjogIkxpdmUgTXVsdGktQXVkaW8iLAogICJzaG9ydF9uYW1lIjogIk11bHRpQXVkaW8iLAogICJzdGFydF91cmwiOiAiLiIsCiAgImRpc3BsYXkiOiAiZnVsbHNjcmVlbiIsCiAgImJhY2tncm91bmRfY29sb3IiOiAiIzFhMWExYSIsCiAgInRoZW1lX2NvbG9yIjogIiMxYTFhMWEiLAogICJpY29ucyI6IFtdCn0=">
+
+    <style>
+        :root {
+            --primary: #ff0000;
+            --bg: #1a1a1a;
+            --surface: #2a2a2a;
+            --text: #ffffff;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        header {
+            width: 100%;
+            background: var(--surface);
+            padding: 15px;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+            margin-bottom: 20px;
+        }
+
+        h1 { margin: 0; font-size: 1.2rem; }
+
+        /* Setup Screen Styles */
+        #setup-screen {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            width: 90%;
+            max-width: 500px;
+            padding: 20px;
+            background: var(--surface);
+            border-radius: 10px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        input {
+            padding: 12px;
+            background: #111;
+            border: 1px solid #444;
+            color: white;
+            border-radius: 5px;
+        }
+
+        button {
+            padding: 12px 20px;
+            background: #444;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+
+        button:hover { background: #555; }
+        
+        button.primary {
+            background: var(--primary);
+        }
+
+        .stream-list-item {
+            display: flex;
+            justify-content: space-between;
+            background: #111;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 0.9rem;
+        }
+
+        /* Player Screen Styles */
+        #player-screen {
+            display: none; /* Hidden by default */
+            width: 100%;
+            max-width: 1000px;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        #master-container {
+            width: 100%;
+            position: relative;
+            padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+            background: #000;
+        }
+
+        #master-player {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Error Overlay for Master Player */
+        #error-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            color: white;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 20px;
+            box-sizing: border-box;
+            z-index: 10;
+        }
+
+        /* Custom Controls */
+        .controls-bar {
+            width: 90%;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--surface);
+            padding: 15px;
+            border-radius: 8px;
+        }
+
+        .playback-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .live-badge {
+            background: #ff0000;
+            color: white;
+            padding: 2px 6px;
+            font-size: 0.7rem;
+            border-radius: 2px;
+            font-weight: bold;
+            display: none;
+        }
+        .live-badge.active { display: inline-block; }
+
+        .audio-selector {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            width: 100%;
+            margin-top: 10px;
+            border-top: 1px solid #444;
+            padding-top: 15px;
+        }
+
+        .audio-btn {
+            background: #333;
+            border: 1px solid #555;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+        }
+
+        .audio-btn.active {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+
+        /* Hidden players for secondary audio 
+           Moved off-screen instead of being 1px size to avoid playback restrictions
+        */
+        #slave-container {
+            position: absolute;
+            left: -9999px;
+            top: 0;
+        }
+
+        /* Range Slider */
+        input[type=range] {
+            width: 100px;
+        }
+        
+        .warning-box {
+            background: #331100;
+            border: 1px solid #ff4400;
+            color: #ffaa88;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 0.8rem;
+            margin-bottom: 10px;
+            display: none;
+        }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Multi-Audio Live Sync</h1>
+    </header>
+
+    <!-- SETUP SCREEN -->
+    <div id="setup-screen">
+        
+        <div id="file-protocol-warning" class="warning-box">
+            <strong>WARNING:</strong> You are opening this file directly (file://). YouTube blocks live playback in this mode. 
+            <br>Please run this on a Local Server (localhost) or upload to GitHub Pages.
+        </div>
+
+        <h3>1. Configure Streams</h3>
+        
+        <div class="input-group">
+            <label>Stream Label (e.g., "English", "Spanish")</label>
+            <input type="text" id="streamLabel" placeholder="Main Feed">
+        </div>
+        
+        <div class="input-group">
+            <label>Link, ID, or Embed Code</label>
+            <input type="text" id="streamLink" placeholder='e.g. youtube.com/live/ID?feature=share' >
+        </div>
+
+        <button onclick="addStream()">+ Add Stream</button>
+
+        <div id="added-streams-list">
+            <!-- Items added here -->
+        </div>
+
+        <hr style="width:100%; border:0; border-top:1px solid #444;">
+        
+        <button class="primary" onclick="launchApp()" id="launchBtn" disabled>Launch Multiview</button>
+    </div>
+
+    <!-- PLAYER SCREEN -->
+    <div id="player-screen">
+        <!-- Master Video -->
+        <div id="master-container">
+            <div id="master-player"></div>
+            <div id="error-overlay">
+                <h3 style="color: #ff4444">Playback Error</h3>
+                <p id="error-message">Waiting for stream...</p>
+                <div style="font-size: 0.9rem; color: #ffaaaa; margin-top: 15px; border: 1px solid #ff4444; padding: 10px; background: rgba(50,0,0,0.5); border-radius: 5px;" id="env-warning">
+                    <!-- Warning injected via JS -->
+                </div>
+                <button onclick="location.reload()" style="margin-top:10px">Reload Page</button>
+            </div>
+        </div>
+
+        <!-- Hidden container for secondary streams -->
+        <div id="slave-container"></div>
+
+        <!-- Controls -->
+        <div class="controls-bar">
+            <div class="playback-controls">
+                <button id="playPauseBtn" onclick="togglePlay()">PLAY LIVE</button>
+                <div id="liveIndicator" class="live-badge">LIVE</div>
+            </div>
+
+            <div class="playback-controls">
+                <span>Vol</span>
+                <input type="range" id="volSlider" min="0" max="100" value="100" oninput="setVolume(this.value)">
+            </div>
+
+            <div class="audio-selector" id="audio-buttons">
+                <!-- Generated buttons go here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIGURATION FOR SHARING ---
+        // To Auto-Launch for friends: Add your streams here.
+        // If this list is not empty, the Setup Screen will be SKIPPED.
+        const PRESET_STREAMS = [
+            // Example Format:
+            // { label: "Main Feed", url: "https://www.youtube.com/live/VIDEO_ID" },
+            
+            // PASTE YOUR LINKS BELOW:
+            { label: "English", url: "https://youtube.com/live/agnFPtcGEc0?feature=share" },
+            { label: "Spanish", url: "https://www.youtube.com/live/xCrPD7tfcr0?si=VTp25PEwNRAwBzu3" },   
+            { label: "French", url: "https://www.youtube.com/live/XYrvGx2F1jY?si=32VY7TSgm-4OqteF" }, 
+        ];
+
+        // Check for file protocol immediately
+        if (window.location.protocol === 'file:') {
+            document.getElementById('file-protocol-warning').style.display = 'block';
+        }
+
+        // State
+        let streams = []; // { id, label, videoId, player: YT.Player }
+        let currentAudioIndex = 0;
+        let isPlaying = false;
+        let appLaunched = false;
+        let globalVolume = 100;
+        let apiReady = false;
+
+        // --- SETUP LOGIC ---
+
+        function addStream() {
+            const labelInput = document.getElementById('streamLabel');
+            const linkInput = document.getElementById('streamLink');
+            const list = document.getElementById('added-streams-list');
+            const launchBtn = document.getElementById('launchBtn');
+
+            const label = labelInput.value.trim();
+            const url = linkInput.value.trim();
+
+            const videoId = extractVideoID(url);
+
+            if (!label || !videoId) {
+                alert("Could not find a valid Video ID. Please check the link or embed code.");
+                return;
+            }
+
+            streams.push({
+                id: streams.length, // 0 is always master
+                label: label,
+                videoId: videoId,
+                player: null
+            });
+
+            // UI update
+            const div = document.createElement('div');
+            div.className = 'stream-list-item';
+            div.innerHTML = `<span>${label}</span> <span style="color:#aaa">${videoId}</span>`;
+            list.appendChild(div);
+
+            // Clear inputs
+            labelInput.value = '';
+            linkInput.value = '';
+
+            // Enable launch if we have at least 1 stream
+            if (streams.length > 0) {
+                launchBtn.disabled = false;
+                launchBtn.innerText = `Launch with ${streams.length} Stream(s)`;
+            }
+        }
+
+        function extractVideoID(input) {
+            if (!input) return null;
+            input = input.trim();
+
+            // 1. Handle full IFRAME embed code
+            if (input.includes('<iframe') || input.includes('src=')) {
+                const srcMatch = input.match(/src=["'](.*?)["']/);
+                if (srcMatch && srcMatch[1]) {
+                    input = srcMatch[1]; 
+                }
+            }
+
+            // 2. If user pasted just the ID (11 chars)
+            if (input.length === 11) return input;
+            
+            // 3. Regex for various YouTube URL formats
+            const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=|live\/)([^#&?]*).*/;
+            const match = input.match(regExp);
+            return (match && match[2].length === 11) ? match[2] : null;
+        }
+
+        function launchApp() {
+            document.getElementById('setup-screen').style.display = 'none';
+            document.getElementById('player-screen').style.display = 'flex';
+            appLaunched = true;
+            initPlayers();
+            renderAudioButtons();
+        }
+
+        // --- PLAYER INITIALIZATION ---
+
+        window.onYouTubeIframeAPIReady = function() {
+            console.log("YouTube API Ready");
+            apiReady = true;
+            if (appLaunched) {
+                initPlayers();
+            }
+        };
+
+        function initPlayers() {
+            if (!apiReady || typeof YT === 'undefined' || !YT.Player) {
+                console.log("Waiting for API...");
+                if(appLaunched) setTimeout(initPlayers, 500);
+                return;
+            }
+
+            if (streams[0].player) return;
+
+            let origin = window.location.origin;
+            let playerVarsCommon = {
+                'playsinline': 1,
+                'controls': 0, 
+                'disablekb': 1,
+                'modestbranding': 1,
+                'rel': 0,
+                'autoplay': 1,
+                'mute': 1, 
+                'enablejsapi': 1,
+                'host': 'https://www.youtube.com'
+            };
+
+            // STRICT ORIGIN CHECK:
+            // Only add origin if it is valid. Canvas often has 'null' or undefined origin.
+            // Sending 'null' origin explicitly often causes blocking.
+            if (origin && origin !== 'null' && (origin.startsWith('http://') || origin.startsWith('https://'))) {
+                playerVarsCommon['origin'] = origin;
+            }
+
+            streams.forEach((stream, index) => {
+                const config = {
+                    videoId: stream.videoId,
+                    playerVars: playerVarsCommon,
+                    events: {
+                        'onStateChange': onPlayerStateChange,
+                        'onError': (e) => onPlayerError(e, stream.label) // Capture errors
+                    }
+                };
+
+                if (index === 0) {
+                    // Master Player
+                    config.height = '100%';
+                    config.width = '100%';
+                    stream.player = new YT.Player('master-player', config);
+                } else {
+                    // Slave Players
+                    const divId = `slave-player-${index}`;
+                    const div = document.createElement('div');
+                    div.id = divId;
+                    document.getElementById('slave-container').appendChild(div);
+                    
+                    config.height = '250';
+                    config.width = '250';
+                    stream.player = new YT.Player(divId, config);
+                }
+            });
+        }
+
+        // --- API LOADER (Async Injection) ---
+        (function() {
+            var tag = document.createElement('script');
+            tag.src = "https://www.youtube.com/iframe_api";
+            var firstScriptTag = document.getElementsByTagName('script')[0];
+            firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+        })();
+
+
+        // --- SYNC & CONTROL LOGIC ---
+
+        function renderAudioButtons() {
+            const container = document.getElementById('audio-buttons');
+            container.innerHTML = '';
+
+            streams.forEach((stream, index) => {
+                const btn = document.createElement('button');
+                btn.className = `audio-btn ${index === 0 ? 'active' : ''}`;
+                btn.innerText = stream.label;
+                btn.onclick = () => selectAudioSource(index);
+                container.appendChild(btn);
+            });
+        }
+
+        function togglePlay() {
+            isPlaying = !isPlaying;
+            const btn = document.getElementById('playPauseBtn');
+            const badge = document.getElementById('liveIndicator');
+
+            if (isPlaying) {
+                btn.innerText = "STOP / PAUSE";
+                btn.classList.add('active');
+                badge.classList.add('active');
+                syncAndPlay();
+            } else {
+                btn.innerText = "PLAY LIVE";
+                btn.classList.remove('active');
+                badge.classList.remove('active');
+                pauseAll();
+            }
+        }
+
+        function syncAndPlay() {
+            streams.forEach(s => {
+                if(s.player && typeof s.player.playVideo === 'function') {
+                    // Seek to live edge
+                    if(typeof s.player.getDuration === 'function') {
+                        const duration = s.player.getDuration();
+                        if(duration > 0) s.player.seekTo(duration, true);
+                    }
+                    s.player.playVideo();
+                }
+            });
+            updateAudioState();
+        }
+
+        function pauseAll() {
+            streams.forEach(s => {
+                if(s.player && typeof s.player.pauseVideo === 'function') {
+                    s.player.pauseVideo();
+                }
+            });
+        }
+
+        // --- AUDIO MANAGEMENT ---
+
+        function selectAudioSource(index) {
+            currentAudioIndex = index;
+
+            // Update UI
+            const btns = document.querySelectorAll('.audio-btn');
+            btns.forEach((btn, i) => {
+                if (i === index) btn.classList.add('active');
+                else btn.classList.remove('active');
+            });
+
+            updateAudioState();
+        }
+
+        function updateAudioState() {
+            streams.forEach((s, index) => {
+                if(!s.player || typeof s.player.mute !== 'function') return;
+
+                if (index === currentAudioIndex) {
+                    s.player.unMute();
+                    s.player.setVolume(globalVolume);
+                } else {
+                    s.player.mute();
+                }
+            });
+        }
+
+        function setVolume(val) {
+            globalVolume = val;
+            const activeStream = streams[currentAudioIndex];
+            if(activeStream && activeStream.player && typeof activeStream.player.setVolume === 'function') {
+                activeStream.player.setVolume(globalVolume);
+            }
+        }
+
+        // --- ERROR HANDLING ---
+        
+        function onPlayerError(event, label) {
+            const errorCode = event.data;
+            let msg = "";
+
+            if (errorCode === 150 || errorCode === 153) {
+                msg = `Error: Stream "${label}" blocked.`;
+                
+                // Detailed Environment Analysis
+                const envWarning = document.getElementById('env-warning');
+                const protocol = window.location.protocol;
+                const origin = window.location.origin;
+                
+                if (protocol === 'file:') {
+                     // CASE: User opened index.html directly
+                     msg += " (Protocol: file://)";
+                     envWarning.innerHTML = `
+                        <strong>CRITICAL: FILE PROTOCOL DETECTED</strong><br>
+                        You are opening this file directly from your computer (<code>file://</code>).<br>
+                        YouTube <strong>blocks</strong> live stream embeds in this mode for security.<br>
+                        <hr style="border:0; border-top:1px solid #777; margin:10px 0;">
+                        <strong>HOW TO FIX:</strong><br>
+                        1. <strong>GitHub:</strong> Upload this file to GitHub Pages.<br>
+                        2. <strong>VS Code:</strong> Right-click file > "Open with Live Server".
+                     `;
+                } else if (!origin || origin === 'null') {
+                     // CASE: Canvas Preview
+                     envWarning.innerHTML = `<strong>Preview Environment Detected.</strong><br>YouTube blocks this.<br>Please deploy this code to a real server.`;
+                } else {
+                    // CASE: Real server, but video permission issue
+                    msg += " Check if video is Public/Unlisted and allows embedding.";
+                    envWarning.innerText = "Code is running on a server, but the video owner has blocked embedding.";
+                }
+            } else if (errorCode === 100) {
+                msg = `Error: The video "${label}" was not found (or is private).`;
+            } else if (errorCode === 101) {
+                msg = `Error: The owner of "${label}" prevents playback in embedded players.`;
+            } else {
+                return; // Ignore minor errors
+            }
+
+            // Show error overlay on Master Video
+            const overlay = document.getElementById('error-overlay');
+            const msgEl = document.getElementById('error-message');
+            msgEl.innerText = msg;
+            overlay.style.display = 'flex';
+            
+            console.error(msg);
+        }
+
+        function onPlayerStateChange(event) {
+            if (event.data === YT.PlayerState.ENDED) {
+                togglePlay(); 
+            }
+        }
+
+        // --- AUTO-LAUNCH CHECK ---
+        (function checkPresets() {
+            if (PRESET_STREAMS && PRESET_STREAMS.length > 0) {
+                console.log("Found presets, attempting auto-launch...");
+                PRESET_STREAMS.forEach(item => {
+                    const vId = extractVideoID(item.url);
+                    if (vId) {
+                        streams.push({
+                            id: streams.length,
+                            label: item.label,
+                            videoId: vId,
+                            player: null
+                        });
+                    }
+                });
+
+                if (streams.length > 0) {
+                    launchApp();
+                }
+            }
+        })();
+
+    </script>
+</body>
+</html>
