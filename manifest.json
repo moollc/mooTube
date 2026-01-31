@@ -1,0 +1,16 @@
+{
+  "name": "Live Stream Multi-Audio Sync",
+  "short_name": "MultiAudio",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#1a1a1a",
+  "theme_color": "#1a1a1a",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3669/3669986.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
