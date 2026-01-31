@@ -104,10 +104,58 @@
         #player-screen {
             display: none; /* Hidden by default */
             width: 100%;
-            max-width: 1000px;
+            max-width: 1400px; /* Increased for side-by-side chat */
             flex-direction: column;
             align-items: center;
             gap: 20px;
+        }
+
+        /* Main Stage: Flex container for Video + Chat */
+        .main-stage {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            gap: 15px;
+        }
+
+        .video-area {
+            flex: 1;
+            width: 100%;
+        }
+
+        .chat-area {
+            display: none; /* Hidden by default via JS toggle usually, or CSS */
+            width: 100%;
+            height: 500px;
+            background: #111;
+            border: 1px solid #333;
+        }
+
+        .chat-area.active {
+            display: block;
+        }
+
+        iframe.chat-frame {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        /* Responsive Desktop Layout */
+        @media (min-width: 900px) {
+            .main-stage {
+                flex-direction: row;
+                align-items: flex-start;
+            }
+            
+            .video-area {
+                flex: 3; /* Video takes 75% */
+            }
+
+            .chat-area {
+                flex: 1; /* Chat takes 25% */
+                height: 600px; /* Fixed height for desktop chat */
+            }
         }
 
         #master-container {
@@ -146,7 +194,7 @@
 
         /* Custom Controls */
         .controls-bar {
-            width: 90%;
+            width: 100%; /* Full width of video area */
             display: flex;
             flex-wrap: wrap;
             gap: 15px;
@@ -155,6 +203,8 @@
             background: var(--surface);
             padding: 15px;
             border-radius: 8px;
+            box-sizing: border-box;
+            margin-top: 15px;
         }
 
         .playback-controls {
@@ -264,38 +314,50 @@
 
     <!-- PLAYER SCREEN -->
     <div id="player-screen">
-        <!-- Master Video -->
-        <div id="master-container">
-            <div id="master-player"></div>
-            <div id="error-overlay">
-                <h3 style="color: #ff4444">Playback Error</h3>
-                <p id="error-message">Waiting for stream...</p>
-                <div style="font-size: 0.9rem; color: #ffaaaa; margin-top: 15px; border: 1px solid #ff4444; padding: 10px; background: rgba(50,0,0,0.5); border-radius: 5px;" id="env-warning">
-                    <!-- Warning injected via JS -->
+        
+        <div class="main-stage">
+            <!-- Left Column: Video + Controls -->
+            <div class="video-area">
+                <div id="master-container">
+                    <div id="master-player"></div>
+                    <div id="error-overlay">
+                        <h3 style="color: #ff4444">Playback Error</h3>
+                        <p id="error-message">Waiting for stream...</p>
+                        <div style="font-size: 0.9rem; color: #ffaaaa; margin-top: 15px; border: 1px solid #ff4444; padding: 10px; background: rgba(50,0,0,0.5); border-radius: 5px;" id="env-warning">
+                            <!-- Warning injected via JS -->
+                        </div>
+                        <button onclick="location.reload()" style="margin-top:10px">Reload Page</button>
+                    </div>
                 </div>
-                <button onclick="location.reload()" style="margin-top:10px">Reload Page</button>
+
+                <!-- Controls -->
+                <div class="controls-bar">
+                    <div class="playback-controls">
+                        <button id="playPauseBtn" onclick="togglePlay()">PLAY LIVE</button>
+                        <div id="liveIndicator" class="live-badge">LIVE</div>
+                        <button id="chatToggleBtn" onclick="toggleChat()">Chat: OFF</button>
+                    </div>
+        
+                    <div class="playback-controls">
+                        <span>Vol</span>
+                        <input type="range" id="volSlider" min="0" max="100" value="100" oninput="setVolume(this.value)">
+                    </div>
+        
+                    <div class="audio-selector" id="audio-buttons">
+                        <!-- Generated buttons go here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Chat -->
+            <div id="chat-column" class="chat-area">
+                <!-- Chat Iframe injected here -->
             </div>
         </div>
 
         <!-- Hidden container for secondary streams -->
         <div id="slave-container"></div>
 
-        <!-- Controls -->
-        <div class="controls-bar">
-            <div class="playback-controls">
-                <button id="playPauseBtn" onclick="togglePlay()">PLAY LIVE</button>
-                <div id="liveIndicator" class="live-badge">LIVE</div>
-            </div>
-
-            <div class="playback-controls">
-                <span>Vol</span>
-                <input type="range" id="volSlider" min="0" max="100" value="100" oninput="setVolume(this.value)">
-            </div>
-
-            <div class="audio-selector" id="audio-buttons">
-                <!-- Generated buttons go here -->
-            </div>
-        </div>
     </div>
 
     <script>
@@ -340,6 +402,7 @@
         let streams = []; // { id, label, videoId, player: YT.Player }
         let currentAudioIndex = 0;
         let isPlaying = false;
+        let isChatVisible = false;
         let appLaunched = false;
         let globalVolume = 100;
         let apiReady = false;
@@ -411,8 +474,43 @@
             document.getElementById('setup-screen').style.display = 'none';
             document.getElementById('player-screen').style.display = 'flex';
             appLaunched = true;
+            
             initPlayers();
+            initChat();
             renderAudioButtons();
+        }
+
+        function initChat() {
+            // Only init chat if we have a master stream
+            if (streams.length === 0) return;
+            
+            const masterVideoId = streams[0].videoId;
+            const domain = window.location.hostname;
+            
+            // Chat URL construction
+            // NOTE: If domain is empty (file://) or null, YouTube chat will block it.
+            // We'll try 'localhost' as fallback for preview, but real deployment needs real domain.
+            const embedDomain = domain || 'localhost'; 
+            const chatUrl = `https://www.youtube.com/live_chat?v=${masterVideoId}&embed_domain=${embedDomain}`;
+
+            const container = document.getElementById('chat-column');
+            container.innerHTML = `<iframe src="${chatUrl}" class="chat-frame"></iframe>`;
+        }
+        
+        function toggleChat() {
+            isChatVisible = !isChatVisible;
+            const chatCol = document.getElementById('chat-column');
+            const btn = document.getElementById('chatToggleBtn');
+            
+            if (isChatVisible) {
+                chatCol.classList.add('active');
+                btn.innerText = "Chat: ON";
+                btn.classList.add('active');
+            } else {
+                chatCol.classList.remove('active');
+                btn.innerText = "Chat: OFF";
+                btn.classList.remove('active');
+            }
         }
 
         // --- PLAYER INITIALIZATION ---
@@ -489,9 +587,26 @@
 
         // --- MASTER PLAYER READY ---
         function onMasterPlayerReady(event) {
-            console.log("Master Player Ready. Requesting HD 1080p.");
-            // Explicitly request 1080p. 'highres' can sometimes be vague.
-            event.target.setPlaybackQuality('hd1080');
+            console.log("Master Player Ready. Attempting quality enforcement...");
+            // Initial attempt
+            forceBestQuality(event.target);
+        }
+
+        function forceBestQuality(player) {
+            // Get available quality levels (e.g., ['hd1080', 'hd720', 'large', 'medium', 'small'])
+            // They are usually sorted best to worst.
+            const levels = player.getAvailableQualityLevels();
+            
+            if (levels && levels.length > 0) {
+                // Pick the absolute best quality available
+                const bestQuality = levels[0];
+                console.log(`Enforcing Quality: ${bestQuality} (Available: ${levels.join(', ')})`);
+                player.setPlaybackQuality(bestQuality);
+            } else {
+                // Blind attempt if levels aren't ready yet
+                console.log("Quality levels not ready, forcing hd1080");
+                player.setPlaybackQuality('hd1080');
+            }
         }
 
         // --- API LOADER (Async Injection) ---
@@ -646,11 +761,10 @@
         }
 
         function onPlayerStateChange(event) {
-            // Suggest quality when playing OR buffering
+            // Force quality check on Buffer or Playing state
             if (event.data === YT.PlayerState.PLAYING || event.data === YT.PlayerState.BUFFERING) {
                 if(event.target.getIframe().id === 'master-player') {
-                    // Force HD 1080p aggressively
-                    event.target.setPlaybackQuality('hd1080');
+                    forceBestQuality(event.target);
                 }
             }
             if (event.data === YT.PlayerState.ENDED) {
