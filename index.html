@@ -251,6 +251,32 @@
             margin-bottom: 10px;
             display: none;
         }
+          display: none;
+        }
+
+        /* NEW: Mobile Layout Tweaks */
+        @media (max-width: 700px) {
+            .controls-bar {
+                flex-direction: column;
+                gap: 10px;
+            }
+            .control-group {
+                justify-content: space-between;
+                width: 100%;
+            }
+            /* Make Play button big on mobile */
+            #playPauseBtn {
+                flex-grow: 1;
+                text-align: center;
+            }
+            .audio-selector, .quality-selector {
+                width: 100%;
+            }
+            .audio-btn, .quality-btn {
+                flex-grow: 1; /* Bigger touch targets */
+                text-align: center;
+            }
+        }
 
     </style>
 </head>
@@ -749,15 +775,67 @@
             console.error(msg);
         }
 
-        function onPlayerStateChange(event) {
+             function onPlayerStateChange(event) {
+            const player = event.target;
+            const iframe = player.getIframe();
+            if (!iframe) return;
+            const isMaster = iframe.id === 'master-player';
+
+            // 1. Handle PLAYING
             if (event.data === YT.PlayerState.PLAYING) {
-                // If we haven't populated dropdown yet, do it now
-                if(event.target.getIframe().id === 'master-player') {
-                     populateQualityDropdown(event.target);
+                if (isMaster) {
+                    isPlaying = true;
+                    updatePlayBtnUI(); // Sync button text
+                    populateQualityDropdown(player);
+                    
+                    // Force slaves to resume if they were paused
+                    streams.forEach((s, i) => {
+                        if (i !== 0 && s.player && typeof s.player.playVideo === 'function') {
+                            s.player.playVideo();
+                        }
+                    });
                 }
             }
+
+            // 2. Handle PAUSED
+            if (event.data === YT.PlayerState.PAUSED) {
+                if (isMaster) {
+                    isPlaying = false;
+                    updatePlayBtnUI(); // Sync button text
+                    
+                    // Force slaves to pause
+                    streams.forEach((s, i) => {
+                        if (i !== 0 && s.player && typeof s.player.pauseVideo === 'function') {
+                            s.player.pauseVideo();
+                        }
+                    });
+                }
+            }
+
+            // 3. Handle BUFFERING (Force Quality)
+            if (event.data === YT.PlayerState.BUFFERING) {
+                if(isMaster) {
+                    forceBestQuality(player);
+                }
+            }
+
             if (event.data === YT.PlayerState.ENDED) {
                 togglePlay(); 
+            }
+        }
+
+        // New Helper to keep UI in sync with actual player state
+        function updatePlayBtnUI() {
+            const btn = document.getElementById('playPauseBtn');
+            const badge = document.getElementById('liveIndicator');
+            if (isPlaying) {
+                btn.innerText = "STOP / PAUSE";
+                btn.classList.add('active');
+                badge.classList.add('active');
+            } else {
+                btn.innerText = "PLAY LIVE";
+                btn.classList.remove('active');
+                badge.classList.remove('active');
             }
         }
 
@@ -786,3 +864,4 @@
     </script>
 </body>
 </html>
+
