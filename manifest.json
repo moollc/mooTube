@@ -1,6 +1,6 @@
 {
-  "name": "Live Stream Multi-Audio Sync",
-  "short_name": "MultiAudio",
+  "name": "mooTube",
+  "short_name": "mooTube",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#1a1a1a",
